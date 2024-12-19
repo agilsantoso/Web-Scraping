@@ -1,0 +1,103 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import html
+import re
+
+urls = []
+url = 'https://es.ncnp.gov.sa/v5/nonprofits/'
+for i in range(5752):
+    result = url + str(i+1)
+    urls.append(result)
+
+def parse(html_doc):
+    response = requests.get(html_doc)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    return soup
+data = []
+for web in urls:
+    print(web + " has been open")
+    print("")
+    try:
+        title1 = parse(web).find('h5').get_text()
+        lines = title1.strip().split('\n')
+        if len(lines) >= 2:
+            lines.pop(1)
+        title = ''.join(lines)
+        print("title: ", title)
+    except:
+        pass
+    try:
+        paragraphs = parse(web).find_all('p')
+
+        license_number = paragraphs[0].get_text().strip().replace("رقم الترخيص :", "")
+        print("license number: ", license_number)
+
+        address1 = paragraphs[1].get_text().strip()
+        address = ''.join(address1.split())
+        print("address: ", address)
+
+        supervisor = paragraphs[2].get_text().strip()
+        print("supervisor: ", supervisor)
+
+        hrefs = parse(web).find_all('a')
+
+        phone = hrefs[1].get_text().strip().replace("الهاتف الرسمي :", "")
+        print("phone: ", phone)
+    except:
+        pass
+
+    def decode_email(encoded_email):
+        # Extract key and remaining characters
+        key = int(encoded_email[:2], 16)
+        encoded_chars = [int(encoded_email[i:i+2], 16) for i in range(2, len(encoded_email), 2)]
+
+        # Decode each character using XOR with key
+        decoded_chars = [char ^ key for char in encoded_chars]
+
+        # Convert ASCII codes to characters and concatenate
+        decoded_email = ''.join(chr(char) for char in decoded_chars)
+        
+        return decoded_email
+    try:
+        span_element = hrefs[2].find('span', class_='__cf_email__')
+
+        if span_element:
+            # Extract the encoded email address from data-cfemail attribute
+            encoded_email = span_element['data-cfemail']
+
+            # Decode the email address
+            decoded_email = decode_email(encoded_email)
+            
+            print("Decoded email address:", decoded_email)
+    except:
+        pass
+
+    try:
+        website = hrefs[3].get_text().strip().replace("الموقع الالكتروني :", "")
+        print("website: ", website)
+
+        fax = hrefs[4].get_text().strip().replace("الفاكس :", "")
+        print("fax: ", fax)
+
+        postal_code = hrefs[5].get_text().strip().replace("ص.ب :", "")
+    except:
+        pass
+
+    print("postal_code: ", postal_code)
+    print("#############################")
+    print("")
+
+    dict = {"URL":web,
+            "Title": title,
+            "License Number": license_number,
+            "Address": address,
+            "Supervisor": supervisor,
+            "Phone": phone,
+            "Email": decoded_email,
+            "Website": website,
+            "FAX": fax,
+            "Postal Code": postal_code }
+    data.append(dict)
+    df = pd.DataFrame(data)
+    df.to_csv("Data.csv", index=False, encoding='utf-8-sig')
